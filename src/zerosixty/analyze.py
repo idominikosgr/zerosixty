@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from itertools import combinations
+from typing import TYPE_CHECKING
 
 from zerosixty.models import (
     AccountSummary,
@@ -16,6 +17,9 @@ from zerosixty.models import (
     TokenSummary,
     TweetRecord,
 )
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 
 def build_dataset_stats(
@@ -430,37 +434,54 @@ def build_overlap_network(
     return node_records, component_records
 
 
-def build_feature_rows(account_summaries: list[AccountSummary]) -> list[FeatureRow]:
-    """Build a numeric feature matrix with blank analyst labels."""
+def build_feature_rows(
+    account_summaries: list[AccountSummary],
+    network_nodes: list[NetworkNodeSummary],
+    *,
+    reference_time: datetime | None,
+) -> list[FeatureRow]:
+    """Build a numeric feature matrix with network and metadata features."""
 
-    return [
-        FeatureRow(
-            account_handle=summary.account_handle,
-            tweet_count=summary.tweet_count,
-            retweet_count=summary.retweet_count,
-            original_count=summary.original_count,
-            quote_count=summary.quote_count,
-            retweet_ratio=summary.retweet_ratio,
-            first_retweeter_count=summary.first_retweeter_count,
-            unique_retweeted_tweet_count=summary.unique_retweeted_tweet_count,
-            unique_retweeted_author_count=summary.unique_retweeted_author_count,
-            retweets_to_member_count=summary.retweets_to_member_count,
-            retweets_to_member_ratio=summary.retweets_to_member_ratio,
-            top_amplified_count=summary.top_amplified_count,
-            top_amplified_share=summary.top_amplified_share,
-            hashtag_count=summary.hashtag_count,
-            mention_count=summary.mention_count,
-            followers_count=summary.followers_count,
-            friends_count=summary.friends_count,
-            statuses_count=summary.statuses_count,
-            default_profile=_bool_to_int(summary.default_profile),
-            default_profile_image=_bool_to_int(summary.default_profile_image),
-            is_blue_verified=_bool_to_int(summary.is_blue_verified),
-            coordination_score=summary.coordination_score,
-            analyst_label="",
+    network_lookup = {node.account_handle: node for node in network_nodes}
+    rows: list[FeatureRow] = []
+    for summary in account_summaries:
+        node = network_lookup.get(summary.account_handle)
+        account_age_days = _account_age_days(summary.account_created_at, reference_time)
+        rows.append(
+            FeatureRow(
+                account_handle=summary.account_handle,
+                tweet_count=summary.tweet_count,
+                retweet_count=summary.retweet_count,
+                original_count=summary.original_count,
+                quote_count=summary.quote_count,
+                retweet_ratio=summary.retweet_ratio,
+                first_retweeter_count=summary.first_retweeter_count,
+                unique_retweeted_tweet_count=summary.unique_retweeted_tweet_count,
+                unique_retweeted_author_count=summary.unique_retweeted_author_count,
+                retweets_to_member_count=summary.retweets_to_member_count,
+                retweets_to_member_ratio=summary.retweets_to_member_ratio,
+                top_amplified_count=summary.top_amplified_count,
+                top_amplified_share=summary.top_amplified_share,
+                hashtag_count=summary.hashtag_count,
+                mention_count=summary.mention_count,
+                followers_count=summary.followers_count,
+                friends_count=summary.friends_count,
+                statuses_count=summary.statuses_count,
+                account_age_days=account_age_days,
+                default_profile=_bool_to_int(summary.default_profile),
+                default_profile_image=_bool_to_int(summary.default_profile_image),
+                is_blue_verified=_bool_to_int(summary.is_blue_verified),
+                network_component_size=node.component_size if node is not None else 0,
+                network_neighbor_count=node.neighbor_count if node is not None else 0,
+                network_weighted_degree=node.weighted_degree if node is not None else 0,
+                network_within_15m_weight=node.within_15m_weight if node is not None else 0,
+                network_within_60m_weight=node.within_60m_weight if node is not None else 0,
+                network_max_shared_edge=node.max_shared_edge if node is not None else 0,
+                coordination_score=summary.coordination_score,
+                analyst_label="",
+            )
         )
-        for summary in account_summaries
-    ]
+    return rows
 
 
 def _coordination_score(summary: AccountSummary) -> float:
@@ -480,6 +501,16 @@ def _bool_to_int(value: bool | None) -> int | None:
     if value is None:
         return None
     return int(value)
+
+
+def _account_age_days(
+    created_at: datetime | None,
+    reference_time: datetime | None,
+) -> int | None:
+    if created_at is None or reference_time is None:
+        return None
+    delta = reference_time - created_at
+    return max(delta.days, 0)
 
 
 def _sorted_pair(left: str, right: str) -> tuple[str, str]:

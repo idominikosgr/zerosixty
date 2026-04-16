@@ -31,7 +31,7 @@ def analyze(
             dir_okay=True,
             help="Directory containing the raw export files.",
         ),
-    ] = Path("."),
+    ] = Path(),
     output_dir: Annotated[
         Path,
         typer.Option(
@@ -65,8 +65,28 @@ def analyze(
             help="Minimum shared retweeted originals before keeping an account pair.",
         ),
     ] = 2,
+    enable_ml: Annotated[
+        bool,
+        typer.Option(
+            "--with-ml/--no-ml",
+            help="Run the unsupervised ML baseline alongside deterministic analysis.",
+        ),
+    ] = True,
+    ml_clusters: Annotated[
+        int | None,
+        typer.Option(
+            min=1,
+            help="Explicit cluster count for the ML baseline. Defaults to silhouette selection.",
+        ),
+    ] = None,
+    ml_random_state: Annotated[
+        int,
+        typer.Option(
+            help="Random seed for the ML baseline.",
+        ),
+    ] = 42,
 ) -> None:
-    """Run the deterministic coordination-analysis pipeline."""
+    """Run the deterministic coordination-analysis pipeline and ML baseline."""
 
     results, written = run_pipeline(
         input_dir=input_dir,
@@ -74,6 +94,9 @@ def analyze(
         members_csv=members_csv,
         exporter_json=exporter_json,
         min_shared_overlap=min_shared_overlap,
+        enable_ml=enable_ml,
+        ml_clusters=ml_clusters,
+        ml_random_state=ml_random_state,
     )
 
     stats = results.dataset_stats
@@ -104,6 +127,23 @@ def analyze(
             account.top_amplified_account or "-",
         )
     console.print(table)
+
+    ml_summary = results.ml_run_summary
+    console.print(
+        "ml: "
+        f"status={ml_summary.status} "
+        f"samples={ml_summary.sample_count} "
+        f"features={ml_summary.input_feature_count} "
+        f"clusters={ml_summary.cluster_count}"
+    )
+    if results.ml_account_summaries:
+        top_anomaly = results.ml_account_summaries[0]
+        console.print(
+            "top_ml_anomaly: "
+            f"{top_anomaly.account_handle} "
+            f"cluster={top_anomaly.cluster_id} "
+            f"score={top_anomaly.anomaly_score:.4f}"
+        )
 
     console.print("written files:")
     for name, path in written.items():

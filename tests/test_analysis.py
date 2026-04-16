@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from zerosixty.analyze import (
     build_account_summaries,
     build_cascade_summaries,
+    build_feature_rows,
     build_overlap_network,
     build_overlap_summaries,
 )
@@ -86,6 +87,43 @@ def test_build_overlap_network_extracts_component_and_node_metrics() -> None:
     assert node_by_account["alice"].component_id == 1
     assert node_by_account["alice"].neighbor_count == 2
     assert node_by_account["alice"].strongest_neighbor == "bob"
+
+
+def test_build_feature_rows_enriches_accounts_with_network_metrics() -> None:
+    members = [
+        _member("alice"),
+        _member("bob"),
+    ]
+    tweets = [
+        _retweet("alice", "orig-1", "source-a", 0),
+        _retweet("bob", "orig-1", "source-a", 2),
+        _retweet("alice", "orig-2", "source-b", 5),
+        _retweet("bob", "orig-2", "source-b", 7),
+        _retweet("carol", "orig-2", "source-b", 9),
+    ]
+
+    cascades = build_cascade_summaries(tweets)
+    summaries = build_account_summaries(members, tweets, cascades)
+    overlaps = build_overlap_summaries(tweets, min_shared=1)
+    nodes, _ = build_overlap_network(overlaps)
+    reference_time = datetime(2026, 4, 16, tzinfo=UTC)
+
+    feature_rows = build_feature_rows(
+        summaries,
+        nodes,
+        reference_time=reference_time,
+    )
+    rows_by_account = {row.account_handle: row for row in feature_rows}
+
+    assert rows_by_account["alice"].account_age_days == (
+        reference_time - datetime(2024, 1, 1, tzinfo=UTC)
+    ).days
+    assert rows_by_account["alice"].network_component_size == 3
+    assert rows_by_account["alice"].network_neighbor_count == 2
+    assert rows_by_account["alice"].network_weighted_degree == 3
+    assert rows_by_account["alice"].network_max_shared_edge == 2
+    assert rows_by_account["carol"].account_age_days is None
+    assert rows_by_account["carol"].network_component_size == 3
 
 
 def _member(handle: str) -> MemberRecord:

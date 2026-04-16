@@ -3,11 +3,13 @@ from __future__ import annotations
 import csv
 import json
 from datetime import datetime
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from zerosixty.models import MemberRecord
 from zerosixty.normalize import parse_datetime
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def load_member_records(path: Path) -> list[MemberRecord]:

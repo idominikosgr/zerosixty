@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from pathlib import Path
 
 
 @dataclass(slots=True)
@@ -210,11 +213,63 @@ class FeatureRow:
     followers_count: int | None
     friends_count: int | None
     statuses_count: int | None
+    account_age_days: int | None
     default_profile: int | None
     default_profile_image: int | None
     is_blue_verified: int | None
+    network_component_size: int
+    network_neighbor_count: int
+    network_weighted_degree: int
+    network_within_15m_weight: int
+    network_within_60m_weight: int
+    network_max_shared_edge: int
     coordination_score: float
     analyst_label: str
+
+
+@dataclass(slots=True)
+class MLRunSummary:
+    """Top-level metadata for one ML baseline run."""
+
+    status: str
+    sample_count: int
+    input_feature_count: int
+    cluster_count: int
+    cluster_selection: str
+    cluster_model: str
+    anomaly_model: str
+    embedding_model: str
+    feature_names: tuple[str, ...]
+    note: str | None
+
+
+@dataclass(slots=True)
+class MLAccountSummary:
+    """Account-level ML outputs derived from the deterministic feature matrix."""
+
+    account_handle: str
+    cluster_id: int
+    cluster_size: int
+    anomaly_score: float
+    anomaly_rank: int
+    centroid_distance: float
+    embedding_x: float
+    embedding_y: float
+    coordination_score: float
+    retweet_ratio: float
+    network_weighted_degree: int
+
+
+@dataclass(slots=True)
+class MLClusterSummary:
+    """Cluster-level summaries for the unsupervised ML baseline."""
+
+    cluster_id: int
+    account_count: int
+    mean_coordination_score: float
+    mean_retweet_ratio: float
+    mean_network_weighted_degree: float
+    top_accounts: tuple[str, ...]
 
 
 @dataclass(slots=True)
@@ -233,3 +288,6 @@ class AnalysisResults:
     network_nodes: list[NetworkNodeSummary]
     network_components: list[NetworkComponentSummary]
     feature_rows: list[FeatureRow]
+    ml_run_summary: MLRunSummary
+    ml_account_summaries: list[MLAccountSummary]
+    ml_cluster_summaries: list[MLClusterSummary]

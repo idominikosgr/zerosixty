@@ -6,8 +6,9 @@ The current goal is not to auto-label accounts as bots. The current goal is to:
 
 - normalize raw list-member and tweet exports into one schema
 - extract deterministic coordination signals
+- run an unsupervised ML baseline on top of the deterministic feature matrix
 - produce reviewable reports and flat files
-- export a feature matrix that can later feed unsupervised or supervised ML
+- keep the feature matrix available for later supervised work
 
 ## Input files
 
@@ -60,18 +61,33 @@ The CLI writes:
 - `network_nodes.csv`
 - `network_components.csv`
 - `ml_feature_matrix.csv`
+- `ml_accounts.csv`
+- `ml_clusters.csv`
 - `summary.json`
 - `report.md`
 
-### 4. ML handoff
+### 4. Parallel ML baseline
 
-The initial deterministic outputs are meant to become training and review inputs.
+The ML lane runs in parallel with the deterministic one. It consumes the same
+feature matrix and produces review-oriented outputs without replacing the
+deterministic summaries.
 
-Recommended next ML steps:
+Current ML behavior:
 
-1. Analyst-review a small subset of accounts and cascades.
+- standardize numeric account features
+- cluster accounts with `KMeans`
+- score outliers with `IsolationForest`
+- project accounts into two dimensions with `PCA`
+- write cluster- and account-level ML summaries for review
+
+The current ML lane is unsupervised. It does not assign truth labels such as
+`bot`, `organic`, or `paid`.
+
+Recommended next steps after that:
+
+1. Analyst-review a subset of accounts, cascades, and ML outliers.
 2. Add labels such as `amplifier`, `organic`, `needs_review`, `source_hub`.
-3. Run unsupervised clustering on account features and pair-overlap features.
+3. Compare those labels against cluster membership and anomaly rankings.
 4. Move to supervised classification only after review labels are stable.
 
 ## CLI
@@ -94,4 +110,5 @@ uv run zerosixty analyze --input-dir /absolute/path/to/export-folder
 - This sample is one short capture window, not a long-running panel.
 - Retweet timing here is only timing inside the captured sample, not the full platform.
 - A high coordination score is a review signal, not proof of automation or payment.
+- The current ML lane is unsupervised and review-oriented. It does not assign truth labels.
 - The current code does not ingest follower graphs, liked posts, or external funding signals.

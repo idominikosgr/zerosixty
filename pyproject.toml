@@ -5,18 +5,14 @@ build-backend = "hatchling.build"
 [project]
 name = "zerosixty"
 version = "1.0.1"
-description = "Deterministic coordination-analysis pipeline for X/Twitter list exports."
+description = "Deterministic and unsupervised-ML coordination analysis for X/Twitter list exports."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-  "rich>=15.0.0",
-  "typer>=0.24.1",
-]
-
-[project.optional-dependencies]
-ml = [
   "numpy>=2.4.4",
+  "rich>=15.0.0",
   "scikit-learn>=1.8.0",
+  "typer>=0.24.1",
 ]
 
 [project.scripts]
@@ -24,9 +20,9 @@ zerosixty = "zerosixty.cli:app"
 
 [dependency-groups]
 dev = [
-  "mypy>=1.18.1",
-  "pytest>=8.4.2",
-  "ruff>=0.12.12",
+  "mypy>=1.20.1",
+  "pytest>=9.0.3",
+  "ruff>=0.15.10",
 ]
 
 [tool.hatch.build.targets.wheel]

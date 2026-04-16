@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import csv
 import json
-from collections.abc import Iterable
 from dataclasses import asdict, fields, is_dataclass
 from datetime import datetime
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from zerosixty.models import AnalysisResults
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from pathlib import Path
+
+    from zerosixty.models import AnalysisResults
 
 
 def write_outputs(results: AnalysisResults, output_dir: Path) -> dict[str, Path]:
@@ -26,6 +28,8 @@ def write_outputs(results: AnalysisResults, output_dir: Path) -> dict[str, Path]
         "network_nodes": output_dir / "network_nodes.csv",
         "network_components": output_dir / "network_components.csv",
         "ml_feature_matrix": output_dir / "ml_feature_matrix.csv",
+        "ml_accounts": output_dir / "ml_accounts.csv",
+        "ml_clusters": output_dir / "ml_clusters.csv",
         "summary": output_dir / "summary.json",
         "report": output_dir / "report.md",
     }
@@ -40,6 +44,8 @@ def write_outputs(results: AnalysisResults, output_dir: Path) -> dict[str, Path]
     _write_dataclass_csv(results.network_nodes, written["network_nodes"])
     _write_dataclass_csv(results.network_components, written["network_components"])
     _write_dataclass_csv(results.feature_rows, written["ml_feature_matrix"])
+    _write_dataclass_csv(results.ml_account_summaries, written["ml_accounts"])
+    _write_dataclass_csv(results.ml_cluster_summaries, written["ml_clusters"])
 
     written["summary"].write_text(
         json.dumps(build_summary_payload(results), ensure_ascii=False, indent=2)
@@ -70,6 +76,15 @@ def build_summary_payload(results: AnalysisResults) -> dict[str, Any]:
         "network_nodes": [
             _dataclass_to_jsonable(item) for item in results.network_nodes[:15]
         ],
+        "ml": {
+            "run": _dataclass_to_jsonable(results.ml_run_summary),
+            "clusters": [
+                _dataclass_to_jsonable(item) for item in results.ml_cluster_summaries[:15]
+            ],
+            "top_anomalies": [
+                _dataclass_to_jsonable(item) for item in results.ml_account_summaries[:15]
+            ],
+        },
     }
 
 
@@ -84,6 +99,9 @@ def render_markdown_report(results: AnalysisResults) -> str:
     top_pairs = results.overlap_summaries[:10]
     top_network_components = results.network_components[:10]
     top_network_nodes = results.network_nodes[:10]
+    ml_run_summary = results.ml_run_summary
+    top_ml_clusters = results.ml_cluster_summaries[:10]
+    top_ml_anomalies = results.ml_account_summaries[:10]
 
     lines: list[str] = []
     lines.append("# zerosixty analysis report")
@@ -181,7 +199,51 @@ def render_markdown_report(results: AnalysisResults) -> str:
                 f"weighted_degree={node.weighted_degree} neighbors={node.neighbor_count} "
                 f"strongest_neighbor={node.strongest_neighbor or '-'} "
                 f"max_shared_edge={node.max_shared_edge}"
+                )
+
+    lines.append("")
+    lines.append("## ML baseline")
+    lines.append("")
+    lines.append(
+        "- "
+        f"status={ml_run_summary.status} "
+        f"samples={ml_run_summary.sample_count} "
+        f"input_features={ml_run_summary.input_feature_count} "
+        f"clusters={ml_run_summary.cluster_count} "
+        f"cluster_selection={ml_run_summary.cluster_selection}"
+    )
+    if ml_run_summary.note:
+        lines.append(f"- note: {ml_run_summary.note}")
+    if ml_run_summary.status == "ready":
+        lines.append(
+            "- "
+            f"models: clusters={ml_run_summary.cluster_model} "
+            f"anomaly={ml_run_summary.anomaly_model} "
+            f"embedding={ml_run_summary.embedding_model}"
+        )
+        lines.append("")
+        lines.append("Largest ML clusters:")
+        for cluster in top_ml_clusters:
+            lines.append(
+                "- "
+                f"cluster={cluster.cluster_id} accounts={cluster.account_count} "
+                f"mean_coordination_score={cluster.mean_coordination_score:.4f} "
+                f"mean_retweet_ratio={cluster.mean_retweet_ratio:.4f} "
+                f"mean_network_weighted_degree={cluster.mean_network_weighted_degree:.4f} "
+                f"top_accounts={', '.join(cluster.top_accounts[:5])}"
             )
+        if top_ml_anomalies:
+            lines.append("")
+            lines.append("Top ML anomalies:")
+            for anomaly in top_ml_anomalies:
+                lines.append(
+                    "- "
+                    f"`{anomaly.account_handle}` cluster={anomaly.cluster_id} "
+                    f"anomaly_rank={anomaly.anomaly_rank} "
+                    f"anomaly_score={anomaly.anomaly_score:.4f} "
+                    f"centroid_distance={anomaly.centroid_distance:.4f} "
+                    f"coordination_score={anomaly.coordination_score:.2f}"
+                )
 
     lines.append("")
     lines.append("## Limits")
@@ -189,6 +251,10 @@ def render_markdown_report(results: AnalysisResults) -> str:
     lines.append("- This report is based on one export window, not long-term behavior.")
     lines.append("- A high score is a review signal. It is not proof of automation or payment.")
     lines.append("- Retweet timing only reflects events present in this sample.")
+    lines.append(
+        "- The current ML lane is unsupervised and review-oriented. "
+        "It does not assign truth labels."
+    )
     return "\n".join(lines) + "\n"
 
 

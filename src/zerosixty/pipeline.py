@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from zerosixty.analyze import (
     build_account_summaries,
@@ -14,9 +14,13 @@ from zerosixty.analyze import (
 )
 from zerosixty.discovery import discover_dataset
 from zerosixty.loaders import load_export_rows, load_member_records
-from zerosixty.models import AnalysisResults
+from zerosixty.ml import run_ml_pipeline
+from zerosixty.models import AnalysisResults, MLRunSummary
 from zerosixty.normalize import build_tweet_records
 from zerosixty.reporting import write_outputs
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def run_pipeline(
@@ -26,8 +30,11 @@ def run_pipeline(
     members_csv: Path | None = None,
     exporter_json: Path | None = None,
     min_shared_overlap: int = 2,
+    enable_ml: bool = True,
+    ml_clusters: int | None = None,
+    ml_random_state: int = 42,
 ) -> tuple[AnalysisResults, dict[str, Path]]:
-    """Run the full deterministic analysis pipeline."""
+    """Run the deterministic and ML baseline pipelines."""
 
     dataset_paths = discover_dataset(
         input_dir,
@@ -46,7 +53,32 @@ def run_pipeline(
     retweet_edges = build_retweet_edges(tweets)
     overlap_summaries = build_overlap_summaries(tweets, min_shared=min_shared_overlap)
     network_nodes, network_components = build_overlap_network(overlap_summaries)
-    feature_rows = build_feature_rows(account_summaries)
+    feature_rows = build_feature_rows(
+        account_summaries,
+        network_nodes,
+        reference_time=dataset_stats.date_end,
+    )
+    if enable_ml:
+        ml_run_summary, ml_account_summaries, ml_cluster_summaries = run_ml_pipeline(
+            feature_rows,
+            requested_clusters=ml_clusters,
+            random_state=ml_random_state,
+        )
+    else:
+        ml_run_summary = MLRunSummary(
+            status="skipped_disabled",
+            sample_count=len(feature_rows),
+            input_feature_count=0,
+            cluster_count=0,
+            cluster_selection="disabled",
+            cluster_model="none",
+            anomaly_model="none",
+            embedding_model="none",
+            feature_names=(),
+            note="ML baseline disabled by caller.",
+        )
+        ml_account_summaries = []
+        ml_cluster_summaries = []
 
     results = AnalysisResults(
         dataset_paths=dataset_paths,
@@ -61,6 +93,9 @@ def run_pipeline(
         network_nodes=network_nodes,
         network_components=network_components,
         feature_rows=feature_rows,
+        ml_run_summary=ml_run_summary,
+        ml_account_summaries=ml_account_summaries,
+        ml_cluster_summaries=ml_cluster_summaries,
     )
     written = write_outputs(results, output_dir)
     return results, written
