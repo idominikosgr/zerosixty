@@ -117,6 +117,31 @@ The largest cascades in this sample are:
 
 This is not enough to claim automation. It is enough to say that the same field of accounts repeatedly converges on a limited set of originals.
 
+Accounts like 'ellada24' or 'AdonisGeorgiadi' appear as sources of distribution
+
+- He does not appear in `account_summary.csv`, `network_nodes.csv`, or `ml_accounts.csv`, so in this run he is not one of the active accounts being clustered/scored as an amplifier inside the sampled list-account network.
+- He does appear repeatedly as the `source_author` / `original_author_handle` that list accounts retweet.
+
+His role in the sample is fairly clear:
+- 21 distinct retweeter -> `AdonisGeorgiadi` edges
+- 38 total retweets of his posts in the sample
+- 8 separate Adonis-sourced cascades
+- 3 of those cascades are among the biggest in the whole run
+
+The accounts amplifying him include several of the main coordination actors:
+- `hatz_patty` retweets him 5 times
+- `Track11John` 4
+- `nickthegreek5` 4
+- `MasenkaMm230158` 3
+- `46spiros`, `giannMak`, `K_Sav215`, `Volcom40893832` and others also appear
+
+He is also the `top_amplified_account` for some sample accounts, especially lower-volume pure retweeters like `FrankiKostas`, `kokkoriss`, `TetraLogiki`, `InafiZinaf1`, and also `MasenkaMm230158` in the higher-score group.
+
+So the short version is:
+
+Adonis Georgiadis is not showing up here as an internal coordination node or ML-clustered amplifier. He shows up as a recurrent source whose originals are being picked up by many of the accounts that do form the coordination pattern. In this sample, his role is “amplified source,” not “amplifier” or “network connector.”
+
+
 ## What is still missing
 
 ### 1. Lead-lag structure
