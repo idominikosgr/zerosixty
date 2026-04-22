@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-04-22T11:24:16+00:00",
+  "batch_id": "batch_exporter-1776856502784__members-1776856522346",
+  "sources": {
+    "members": {
+      "path": "/Users/dominikospritis/DevFolder/My-Projects/py-workspace/zerosixty/datasets-raw/new/twitter-ListMembers-1776856522346.json",
+      "snapshot_id": 1776856522346,
+      "size_bytes": 2273127,
+      "mtime_ns": 1776856522361023800,
+      "sha256": "de0eb68b6ba3cc7d9e621ea78b6682a8c920b57d04e7359eb240222cddee5171"
+    },
+    "exporter": {
+      "path": "/Users/dominikospritis/DevFolder/My-Projects/py-workspace/zerosixty/datasets-raw/new/twitter-web-exporter-1776856502784.json",
+      "snapshot_id": 1776856502784,
+      "size_bytes": 117555496,
+      "mtime_ns": 1776856502869066214,
+      "sha256": "5ebb70e989b6dd943de6db6235959bec718726285b29b1767cc8c4f307e492dc"
+    },
+    "extra_members": null
+  },
+  "counts": {
+    "member_count": 653,
+    "tweet_count": 7092,
+    "active_account_count": 367,
+    "retweet_count": 6002,
+    "original_count": 1090,
+    "date_start": "2024-10-26T18:35:57+00:00",
+    "date_end": "2026-04-22T11:11:54+00:00",
+    "missing_member_handles": [
+      "Drifter_1066",
+      "Guson653566",
+      "HFirstpriest",
+      "IoannisAro98223",
+      "IriniPapad26550",
+      "Jocoon5",
+      "Lollos1242232",
+      "Pi8kiavlozampis",
+      "Rena_Rethymno",
+      "SpyrosSpyropou7",
+      "TheocharousH",
+      "XMulwna",
+      "XmLdl",
+      "antonispoulas",
+      "christoskostaki",
+      "gabrielubr",
+      "makis585",
+      "myga_tse",
+      "n_palaiopanou",
+      "paristzina",
+      "spfotis",
+      "starick878"
+    ]
+  },
+  "files": {
+    "members": "members.csv",
+    "tweets": "tweets.csv"
+  }
+}

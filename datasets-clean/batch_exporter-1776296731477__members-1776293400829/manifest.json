@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-04-16T23:33:31+00:00",
+  "batch_id": "batch_exporter-1776296731477__members-1776293400829",
+  "sources": {
+    "members": {
+      "path": "/Users/dominikospritis/DevFolder/My-Projects/py-workspace/zerosixty/datasets-raw/twitter-ListMembers-1776293400829.csv",
+      "snapshot_id": 1776293400829,
+      "size_bytes": 1417201,
+      "mtime_ns": 1776315154270479577,
+      "sha256": "d1a972de5203365e1798c2a63f9693cea05a87103033fdd78c6d00000b204994"
+    },
+    "exporter": {
+      "path": "/Users/dominikospritis/DevFolder/My-Projects/py-workspace/zerosixty/datasets-raw/twitter-web-exporter-1776296731477.json",
+      "snapshot_id": 1776296731477,
+      "size_bytes": 37945186,
+      "mtime_ns": 1776315207190264972,
+      "sha256": "4b928d759b7e472a99f7b9b3fcf4f262b8ed3efa19dce253cb30e784c01d7ea4"
+    },
+    "extra_members": {
+      "path": "/Users/dominikospritis/DevFolder/My-Projects/py-workspace/zerosixty/datasets-raw/manual_member_handles_20260417.txt",
+      "snapshot_id": 20260417,
+      "size_bytes": 577,
+      "mtime_ns": 1776381435165548840,
+      "sha256": "a62d6b4ef9f2c83c4180a892959a250c1a7db21de7b349b56214417580addb1a"
+    }
+  },
+  "counts": {
+    "member_count": 638,
+    "tweet_count": 2199,
+    "active_account_count": 197,
+    "retweet_count": 1907,
+    "original_count": 292,
+    "date_start": "2026-04-15T10:55:44+00:00",
+    "date_end": "2026-04-15T23:36:58+00:00",
+    "missing_member_handles": [
+      "Drifter_1066",
+      "Guson653566",
+      "HFirstpriest",
+      "Lollos1242232",
+      "Pi8kiavlozampis",
+      "TheocharousH",
+      "christoskostaki",
+      "myga_tse",
+      "n_palaiopanou"
+    ]
+  },
+  "files": {
+    "members": "members.csv",
+    "tweets": "tweets.csv"
+  }
+}

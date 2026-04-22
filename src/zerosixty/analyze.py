@@ -5,8 +5,11 @@ from itertools import combinations
 from typing import TYPE_CHECKING
 
 from zerosixty.models import (
+    AccountRole,
     AccountSummary,
+    CascadePropagationSummary,
     CascadeSummary,
+    CohortSummary,
     DatasetStats,
     FeatureRow,
     MemberRecord,
@@ -16,6 +19,7 @@ from zerosixty.models import (
     RetweetEdgeSummary,
     TokenSummary,
     TweetRecord,
+    UserCascadeSummary,
 )
 
 if TYPE_CHECKING:
@@ -106,6 +110,61 @@ def build_cascade_summaries(tweets: list[TweetRecord]) -> list[CascadeSummary]:
     return sorted(
         summaries,
         key=lambda item: (-item.retweet_count, item.first_retweet_at or item.original_created_at),
+    )
+
+
+def build_user_cascade_summaries(cascades: list[CascadeSummary]) -> list[UserCascadeSummary]:
+    """Aggregate post-level cascades into per-source-account retweet totals."""
+
+    grouped: dict[str, list[CascadeSummary]] = defaultdict(list)
+    for cascade in cascades:
+        grouped[cascade.original_author_handle].append(cascade)
+
+    summaries: list[UserCascadeSummary] = []
+    for original_author_handle, items in grouped.items():
+        top_cascade = max(
+            items,
+            key=lambda item: (
+                item.retweet_count,
+                item.first_retweet_at or item.original_created_at,
+                item.original_tweet_id,
+            ),
+        )
+        first_retweet_at = min(
+            (item.first_retweet_at for item in items if item.first_retweet_at is not None),
+            default=None,
+        )
+        last_retweet_at = max(
+            (item.last_retweet_at for item in items if item.last_retweet_at is not None),
+            default=None,
+        )
+        unique_retweeters = {
+            retweeter
+            for item in items
+            for retweeter in item.retweeters
+        }
+        summaries.append(
+            UserCascadeSummary(
+                original_author_handle=original_author_handle,
+                total_retweet_count=sum(item.retweet_count for item in items),
+                unique_retweeted_tweet_count=len(items),
+                unique_retweeter_count=len(unique_retweeters),
+                first_retweet_at=first_retweet_at,
+                last_retweet_at=last_retweet_at,
+                total_retweets_within_15m=sum(item.retweets_within_15m for item in items),
+                total_retweets_within_60m=sum(item.retweets_within_60m for item in items),
+                top_cascade_tweet_id=top_cascade.original_tweet_id,
+                top_cascade_retweet_count=top_cascade.retweet_count,
+            )
+        )
+
+    return sorted(
+        summaries,
+        key=lambda item: (
+            -item.total_retweet_count,
+            -item.unique_retweeter_count,
+            item.original_author_handle,
+        ),
     )
 
 
@@ -439,14 +498,46 @@ def build_feature_rows(
     network_nodes: list[NetworkNodeSummary],
     *,
     reference_time: datetime | None,
+    cohorts: list[CohortSummary] | None = None,
+    account_roles: list[AccountRole] | None = None,
+    cascade_propagation: list[CascadePropagationSummary] | None = None,
+    total_cascade_count: int | None = None,
 ) -> list[FeatureRow]:
-    """Build a numeric feature matrix with network and metadata features."""
+    """Build a numeric feature matrix with network, cohort, role and propagation features."""
 
     network_lookup = {node.account_handle: node for node in network_nodes}
+    cohort_membership: dict[str, list[CohortSummary]] = {}
+    for cohort in cohorts or []:
+        for handle in cohort.members:
+            cohort_membership.setdefault(handle, []).append(cohort)
+    role_lookup = {role.account_handle: role for role in (account_roles or [])}
+    propagation_lead_counts: Counter[str] = Counter()
+    for propagation in cascade_propagation or []:
+        if propagation.first_retweeter is not None:
+            propagation_lead_counts[propagation.first_retweeter] += 1
+    total_cascades = (
+        total_cascade_count
+        if total_cascade_count is not None
+        else len(cascade_propagation or [])
+    )
+
     rows: list[FeatureRow] = []
     for summary in account_summaries:
         node = network_lookup.get(summary.account_handle)
         account_age_days = _account_age_days(summary.account_created_at, reference_time)
+        cohort_list = cohort_membership.get(summary.account_handle, [])
+        cohort_count = len(cohort_list)
+        cohort_max_size = max((cohort.member_count for cohort in cohort_list), default=0)
+        cohort_max_cascade_count = max(
+            (cohort.cascade_count for cohort in cohort_list), default=0
+        )
+        role = role_lookup.get(summary.account_handle)
+        role_label = role.role_label if role is not None else "unknown"
+        first_retweeter_ratio = (
+            summary.first_retweeter_count / total_cascades if total_cascades else 0.0
+        )
+        propagation_lead_count = propagation_lead_counts.get(summary.account_handle, 0)
+
         rows.append(
             FeatureRow(
                 account_handle=summary.account_handle,
@@ -477,6 +568,16 @@ def build_feature_rows(
                 network_within_15m_weight=node.within_15m_weight if node is not None else 0,
                 network_within_60m_weight=node.within_60m_weight if node is not None else 0,
                 network_max_shared_edge=node.max_shared_edge if node is not None else 0,
+                cohort_count=cohort_count,
+                cohort_max_size=cohort_max_size,
+                cohort_max_cascade_count=cohort_max_cascade_count,
+                role_retail_user=int(role_label == "retail_user"),
+                role_amplifier_suspect=int(role_label == "amplifier_suspect"),
+                role_media_business=int(role_label == "media_business"),
+                role_journalist_public_figure=int(role_label == "journalist_public_figure"),
+                role_source_hub=int(role_label == "source_hub"),
+                first_retweeter_ratio=round(first_retweeter_ratio, 4),
+                propagation_lead_count=propagation_lead_count,
                 coordination_score=summary.coordination_score,
                 analyst_label="",
             )

@@ -11,8 +11,9 @@ if TYPE_CHECKING:
 def discover_dataset(
     input_dir: Path,
     *,
-    members_csv: Path | None = None,
+    members_file: Path | None = None,
     exporter_json: Path | None = None,
+    extra_members_file: Path | None = None,
 ) -> DatasetPaths:
     """Resolve the input files for a run.
 
@@ -20,11 +21,16 @@ def discover_dataset(
     are selected.
     """
 
-    resolved_members = members_csv or _latest_match(input_dir, "twitter-ListMembers-*.csv")
+    resolved_members = members_file or _latest_member_export(input_dir)
     resolved_exporter = exporter_json or _latest_match(input_dir, "twitter-web-exporter-*.json")
     return DatasetPaths(
-        members_csv=resolved_members.resolve(),
+        members_file=resolved_members.resolve(),
         exporter_json=resolved_exporter.resolve(),
+        extra_members_file=(
+            extra_members_file.resolve()
+            if extra_members_file is not None
+            else None
+        ),
     )
 
 
@@ -33,5 +39,23 @@ def _latest_match(input_dir: Path, pattern: str) -> Path:
     if not matches:
         raise FileNotFoundError(
             f"No files matching {pattern!r} were found in {input_dir}."
+        )
+    return matches[-1]
+
+
+def _latest_member_export(input_dir: Path) -> Path:
+    patterns = (
+        "twitter-ListMembers-*.csv",
+        "twitter-ListMembers-*.json",
+    )
+    matches = [
+        path
+        for pattern in patterns
+        for path in input_dir.glob(pattern)
+    ]
+    matches.sort(key=lambda path: path.stat().st_mtime)
+    if not matches:
+        raise FileNotFoundError(
+            f"No list-member exports matching {patterns!r} were found in {input_dir}."
         )
     return matches[-1]

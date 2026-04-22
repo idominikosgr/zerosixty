@@ -38,6 +38,16 @@ MODEL_FEATURE_NAMES = (
     "network_within_15m_weight",
     "network_within_60m_weight",
     "network_max_shared_edge",
+    "cohort_count",
+    "cohort_max_size",
+    "cohort_max_cascade_count",
+    "role_retail_user",
+    "role_amplifier_suspect",
+    "role_media_business",
+    "role_journalist_public_figure",
+    "role_source_hub",
+    "first_retweeter_ratio",
+    "propagation_lead_count",
 )
 
 LOG_SCALE_FEATURES = {
@@ -62,6 +72,9 @@ LOG_SCALE_FEATURES = {
     "network_within_15m_weight",
     "network_within_60m_weight",
     "network_max_shared_edge",
+    "cohort_max_size",
+    "cohort_max_cascade_count",
+    "propagation_lead_count",
 }
 
 

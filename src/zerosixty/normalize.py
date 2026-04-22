@@ -125,7 +125,7 @@ def normalize_token(value: str) -> str:
 
     normalized = unicodedata.normalize("NFKD", value)
     stripped = "".join(char for char in normalized if not unicodedata.combining(char))
-    return unicodedata.normalize("NFKC", stripped).casefold().replace("ς", "σ")
+    return unicodedata.normalize("NFKC", stripped).casefold().replace("\u03c2", "\u03c3")
 
 
 def canonicalize_text(value: str) -> str:

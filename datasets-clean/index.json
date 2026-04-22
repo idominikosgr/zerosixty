@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-04-22T11:24:16+00:00",
+  "batch_count": 1,
+  "built_count": 1,
+  "skipped_count": 0,
+  "latest_batch_id": "batch_exporter-1776856502784__members-1776856522346",
+  "batches": [
+    {
+      "batch_id": "batch_exporter-1776856502784__members-1776856522346",
+      "status": "built",
+      "output_dir": "/Users/dominikospritis/DevFolder/My-Projects/py-workspace/zerosixty/datasets-clean/batch_exporter-1776856502784__members-1776856522346",
+      "exporter_snapshot_id": 1776856502784,
+      "members_snapshot_id": 1776856522346,
+      "extra_members_snapshot_id": null,
+      "member_count": 653,
+      "tweet_count": 7092,
+      "retweet_count": 6002,
+      "original_count": 1090,
+      "generated_at": "2026-04-22T11:24:16+00:00"
+    }
+  ]
+}

@@ -15,6 +15,7 @@ The current goal is not to auto-label accounts as bots. The current goal is to:
 The package expects raw exports in one directory:
 
 - `twitter-ListMembers-*.csv`
+- `twitter-ListMembers-*.json`
 - `twitter-web-exporter-*.json`
 
 The current sample in this folder contains:
@@ -28,10 +29,11 @@ The pipeline is split into four stages.
 
 ### 1. Discovery and normalization
 
-- find the latest member CSV and exporter JSON in the input directory
+- find the latest member export and exporter JSON in the input directory
 - load member metadata
 - flatten the exporter `tweets` table
 - normalize tweet text, retweet targets, hashtags, mentions, timestamps, and source client
+- optionally merge a manual handle supplement into the member set
 
 ### 2. Deterministic analysis
 
@@ -104,6 +106,75 @@ Use a different source directory:
 ```bash
 uv run zerosixty analyze --input-dir /absolute/path/to/export-folder
 ```
+
+Use an explicit member export file and an extra-handle supplement:
+
+```bash
+uv run zerosixty analyze \
+  --members-file /absolute/path/to/twitter-ListMembers-123.json \
+  --exporter-json /absolute/path/to/twitter-web-exporter-456.json \
+  --extra-members-file /absolute/path/to/manual_member_handles.txt
+```
+
+Build versioned clean batches from `datasets-raw`:
+
+```bash
+uv run zerosixty build-clean
+```
+
+Use explicit directories:
+
+```bash
+uv run zerosixty build-clean \
+  --raw-dir /absolute/path/to/datasets-raw \
+  --clean-dir /absolute/path/to/datasets-clean
+```
+
+Force a rebuild of existing clean batches:
+
+```bash
+uv run zerosixty build-clean --force
+```
+
+Run analysis directly from clean batches (default: auto-refresh clean batches and analyze latest):
+
+```bash
+uv run zerosixty analyze-clean
+```
+
+Analyze a specific batch id:
+
+```bash
+uv run zerosixty analyze-clean --batch-id batch_exporter-1776380968798__members-1776380931158
+```
+
+Disable auto-refresh and use existing clean batches only:
+
+```bash
+uv run zerosixty analyze-clean --no-auto-build
+```
+
+Write outputs into one fixed directory instead of per-batch subdirectories:
+
+```bash
+uv run zerosixty analyze-clean --no-batch-subdir --output-dir ./outputs/clean/latest
+```
+
+The clean flow writes:
+
+- `datasets-clean/batch_*` directories with:
+  - `members.csv` (normalized members)
+  - `tweets.csv` (normalized tweets)
+  - `manifest.json` (source fingerprints and counts)
+- `datasets-clean/index.json` with all batch summaries and the latest batch id
+
+Batch behavior:
+
+- raw files stay unchanged in `datasets-raw`
+- each exporter snapshot becomes one versioned clean batch
+- a batch is skipped on rerun when source fingerprints are unchanged
+- when a new raw exporter snapshot is added, only the new clean batch is built
+- `analyze-clean` can auto-run `build-clean`, resolve the latest batch, and run analysis in one command
 
 ## Limits of the current approach
 

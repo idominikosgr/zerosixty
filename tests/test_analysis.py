@@ -8,6 +8,7 @@ from zerosixty.analyze import (
     build_feature_rows,
     build_overlap_network,
     build_overlap_summaries,
+    build_user_cascade_summaries,
 )
 from zerosixty.models import MemberRecord, TweetRecord
 
@@ -48,6 +49,28 @@ def test_build_account_summaries_scores_pure_retweeters_higher() -> None:
         summary_by_account["alice"].coordination_score
         > summary_by_account["bob"].coordination_score
     )
+
+
+def test_build_user_cascade_summaries_aggregates_by_source_account() -> None:
+    tweets = [
+        _retweet("alice", "orig-1", "source-a", 0),
+        _retweet("bob", "orig-1", "source-a", 5),
+        _retweet("carol", "orig-2", "source-a", 15),
+        _retweet("dave", "orig-3", "source-b", 20),
+    ]
+
+    cascades = build_cascade_summaries(tweets)
+    summaries = build_user_cascade_summaries(cascades)
+
+    assert len(summaries) == 2
+    assert summaries[0].original_author_handle == "source-a"
+    assert summaries[0].total_retweet_count == 3
+    assert summaries[0].unique_retweeted_tweet_count == 2
+    assert summaries[0].unique_retweeter_count == 3
+    assert summaries[0].top_cascade_tweet_id == "orig-1"
+    assert summaries[0].top_cascade_retweet_count == 2
+    assert summaries[1].original_author_handle == "source-b"
+    assert summaries[1].total_retweet_count == 1
 
 
 def test_build_overlap_summaries_respects_threshold() -> None:
