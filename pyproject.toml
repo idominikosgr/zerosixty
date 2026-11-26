@@ -4,15 +4,16 @@ build-backend = "hatchling.build"
 
 [project]
 name = "zerosixty"
-version = "1.0.1"
+version = "1.1.0"
 description = "Deterministic and unsupervised-ML coordination analysis for X/Twitter list exports."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-  "numpy>=2.4.4",
+  "networkx>=3.7.0",
+  "numpy>=2.5.3",
   "rich>=15.0.0",
-  "scikit-learn>=1.8.0",
-  "typer>=0.24.1",
+  "scikit-learn>=1.9.1",
+  "typer>=0.27.2",
 ]
 
 [project.scripts]
