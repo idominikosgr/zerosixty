@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
-from zerosixty.models import MemberRecord, TweetRecord
+from zerosixty.models import AccountProfile, MemberRecord, TweetRecord
 from zerosixty.normalize import parse_datetime
 
 if TYPE_CHECKING:
@@ -122,6 +122,76 @@ def load_export_rows(path: Path) -> list[dict[str, Any]]:
     raise ValueError(f"No tweets table found in {path}.")
 
 
+def load_export_users(path: Path) -> list[dict[str, Any]]:
+    """Load raw user rows from the twitter-web-exporter `users` table.
+
+    Returns an empty list when the table is absent — older exports may not have it.
+    """
+
+    payload = json.loads(path.read_text())
+    tables = payload.get("data", {}).get("data", [])
+    if not isinstance(tables, list):
+        return []
+    for table in tables:
+        if table.get("tableName") == "users":
+            rows = table.get("rows", [])
+            return rows if isinstance(rows, list) else []
+    return []
+
+
+def load_clean_account_records(path: Path) -> list[AccountProfile]:
+    """Load the per-batch account registry from `accounts.csv` if present."""
+
+    if not path.exists():
+        return []
+    records: list[AccountProfile] = []
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        records.extend(
+            AccountProfile(
+                screen_name=row.get("screen_name", ""),
+                user_id=row.get("user_id", ""),
+                display_name=_empty_to_none(row.get("display_name")),
+                description=_empty_to_none(row.get("description")),
+                location=_empty_to_none(row.get("location")),
+                url=_empty_to_none(row.get("url")),
+                followers_count=_parse_int_or_none(row.get("followers_count")),
+                friends_count=_parse_int_or_none(row.get("friends_count")),
+                statuses_count=_parse_int_or_none(row.get("statuses_count")),
+                favourites_count=_parse_int_or_none(row.get("favourites_count")),
+                listed_count=_parse_int_or_none(row.get("listed_count")),
+                is_blue_verified=_bool_or_none(row.get("is_blue_verified")),
+                default_profile=_bool_or_none(row.get("default_profile")),
+                default_profile_image=_bool_or_none(row.get("default_profile_image")),
+                profile_description_language=_empty_to_none(
+                    row.get("profile_description_language")
+                ),
+                created_at=_parse_iso_datetime(row.get("created_at")),
+                is_suspected_member=_parse_bool(row.get("is_suspected_member")),
+                has_richest_profile=_parse_bool(row.get("has_richest_profile")),
+                sources=_parse_tuple_pipe(row.get("sources")),
+            )
+            for row in reader
+        )
+    return records
+
+
+def _parse_tuple_pipe(value: str | None) -> tuple[str, ...]:
+    """Parse a `|`-joined or JSON-list serialized tuple field."""
+
+    if value is None:
+        return ()
+    text = value.strip()
+    if not text:
+        return ()
+    if text.startswith("["):
+        payload = _safe_json_loads(text)
+        if isinstance(payload, list):
+            return tuple(str(item) for item in payload if item is not None)
+        return ()
+    return tuple(part for part in text.split("|") if part)
+
+
 def load_clean_member_records(path: Path) -> list[MemberRecord]:
     """Load normalized members from a clean-batch `members.csv`."""
 
@@ -155,7 +225,11 @@ def load_clean_member_records(path: Path) -> list[MemberRecord]:
 
 
 def load_clean_tweet_records(path: Path) -> list[TweetRecord]:
-    """Load normalized tweets from a clean-batch `tweets.csv`."""
+    """Load normalized tweets from a clean-batch `tweets.csv`.
+
+    Newly-added columns (urls, engagement counts, lang, in_reply_to_*, etc.) fall
+    back to safe defaults so older clean batches keep loading without regeneration.
+    """
 
     records: list[TweetRecord] = []
     with path.open(newline="", encoding="utf-8") as handle:
@@ -171,6 +245,7 @@ def load_clean_tweet_records(path: Path) -> list[TweetRecord]:
                 canonical_text=row.get("canonical_text", ""),
                 is_retweet=_parse_bool(row.get("is_retweet")),
                 is_quote=_parse_bool(row.get("is_quote")),
+                is_reply=_parse_bool(row.get("is_reply")),
                 content_tweet_id=row.get("content_tweet_id", ""),
                 content_author_handle=row.get("content_author_handle", ""),
                 content_author_name=_empty_to_none(row.get("content_author_name")),
@@ -181,6 +256,19 @@ def load_clean_tweet_records(path: Path) -> list[TweetRecord]:
                 hashtags=_parse_tuple_json(row.get("hashtags")),
                 mentions_raw=_parse_tuple_json(row.get("mentions_raw")),
                 mentions=_parse_tuple_json(row.get("mentions")),
+                urls=_parse_tuple_json(row.get("urls")),
+                url_domains=_parse_tuple_json(row.get("url_domains")),
+                lang=_empty_to_none(row.get("lang")),
+                favorite_count=_parse_int(row.get("favorite_count")),
+                retweet_count_at_capture=_parse_int(row.get("retweet_count_at_capture")),
+                quote_count=_parse_int(row.get("quote_count")),
+                reply_count=_parse_int(row.get("reply_count")),
+                view_count=_parse_int_or_none(row.get("view_count")),
+                conversation_id=_empty_to_none(row.get("conversation_id")),
+                in_reply_to_tweet_id=_empty_to_none(row.get("in_reply_to_tweet_id")),
+                in_reply_to_user_handle=_empty_to_none(row.get("in_reply_to_user_handle")),
+                quoted_tweet_id=_empty_to_none(row.get("quoted_tweet_id")),
+                quoted_author_handle=_empty_to_none(row.get("quoted_author_handle")),
             )
             for row in reader
         )
@@ -266,6 +354,18 @@ def _parse_int(value: str | None) -> int:
         return int(value or 0)
     except ValueError:
         return 0
+
+
+def _parse_int_or_none(value: str | None) -> int | None:
+    if value is None:
+        return None
+    text = value.strip() if isinstance(value, str) else str(value).strip()
+    if not text:
+        return None
+    try:
+        return int(text)
+    except ValueError:
+        return None
 
 
 def _parse_bool(value: str | bool | None) -> bool:

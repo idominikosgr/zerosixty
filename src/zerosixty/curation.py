@@ -13,14 +13,18 @@ from typing import Any, Literal
 from zerosixty.analyze import build_dataset_stats
 from zerosixty.loaders import (
     load_export_rows,
+    load_export_users,
     load_extra_member_handles,
     load_member_records,
 )
-from zerosixty.normalize import build_tweet_records
+from zerosixty.normalize import build_account_profiles, build_tweet_records
 
 SNAPSHOT_ID_RE = re.compile(r"(\d{3,})(?=\.[^.]+$)")
 TOKEN_SANITIZER_RE = re.compile(r"[^A-Za-z0-9]+")
 CLEAN_SCHEMA_VERSION = 1
+# Members are typically exported a few seconds after their companion exporter.
+# Allow a small forward tolerance so the natural pair still matches.
+SNAPSHOT_FORWARD_TOLERANCE_MS = 5 * 60 * 1000
 
 
 @dataclass(slots=True, frozen=True)
@@ -233,7 +237,14 @@ def _materialize_clean_batch(
     )
     members = load_member_records(plan.members_file.path, extra_handles=extra_handles)
     raw_rows = load_export_rows(plan.exporter_file.path)
+    raw_users = load_export_users(plan.exporter_file.path)
     tweets = build_tweet_records(raw_rows)
+    member_handles = {member.screen_name for member in members if member.screen_name}
+    accounts = build_account_profiles(
+        raw_rows=raw_rows,
+        users_table_rows=raw_users,
+        member_handles=member_handles,
+    )
     stats = build_dataset_stats(members, tweets)
 
     if output_dir.exists():
@@ -242,6 +253,7 @@ def _materialize_clean_batch(
 
     _write_dataclass_csv(members, output_dir / "members.csv")
     _write_dataclass_csv(tweets, output_dir / "tweets.csv")
+    _write_dataclass_csv(accounts, output_dir / "accounts.csv")
 
     manifest_payload = {
         "schema_version": CLEAN_SCHEMA_VERSION,
@@ -254,6 +266,7 @@ def _materialize_clean_batch(
             "active_account_count": stats.active_account_count,
             "retweet_count": stats.retweet_count,
             "original_count": stats.original_count,
+            "account_profile_count": len(accounts),
             "date_start": _format_datetime(stats.date_start),
             "date_end": _format_datetime(stats.date_end),
             "missing_member_handles": list(stats.missing_member_handles),
@@ -261,6 +274,7 @@ def _materialize_clean_batch(
         "files": {
             "members": "members.csv",
             "tweets": "tweets.csv",
+            "accounts": "accounts.csv",
         },
     }
     manifest_path.write_text(json.dumps(manifest_payload, ensure_ascii=False, indent=2))
@@ -365,10 +379,26 @@ def _source_from_path(
 
 
 def _latest_not_newer(items: list[SourceFile], order_key: int) -> SourceFile | None:
-    eligible = [item for item in items if item.order_key <= order_key]
+    """Return the closest-in-time snapshot, allowing a small forward tolerance.
+
+    Members are typically exported a few seconds after their companion exporter,
+    so strict ``≤`` matching fails for almost every batch when the matcher is
+    pointed at a directory containing many snapshots. The tolerance window
+    accommodates that ordering. When multiple candidates are eligible, the one
+    closest in time to ``order_key`` wins.
+    """
+
+    eligible = [
+        item
+        for item in items
+        if item.order_key <= order_key + SNAPSHOT_FORWARD_TOLERANCE_MS
+    ]
     if not eligible:
         return None
-    return max(eligible, key=lambda item: (item.order_key, item.path.name))
+    return min(
+        eligible,
+        key=lambda item: (abs(item.order_key - order_key), item.path.name),
+    )
 
 
 def _parse_snapshot_id(path: Path) -> int | None:

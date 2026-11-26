@@ -30,6 +30,9 @@ def write_outputs(results: AnalysisResults, output_dir: Path) -> dict[str, Path]
         "network_components": output_dir / "network_components.csv",
         "account_roles": output_dir / "account_roles.csv",
         "amplified_targets": output_dir / "amplified_targets.csv",
+        "retweet_target_profiles": output_dir / "retweet_target_profiles.csv",
+        "source_client_fingerprints": output_dir / "source_client_fingerprints.csv",
+        "cascade_tight_windows": output_dir / "cascade_tight_windows.csv",
         "cohorts": output_dir / "cohorts.csv",
         "cohort_members": output_dir / "cohort_members.csv",
         "cascade_propagation": output_dir / "cascade_propagation.csv",
@@ -54,6 +57,15 @@ def write_outputs(results: AnalysisResults, output_dir: Path) -> dict[str, Path]
     _write_dataclass_csv(results.network_components, written["network_components"])
     _write_dataclass_csv(results.account_roles, written["account_roles"])
     _write_dataclass_csv(results.amplified_targets, written["amplified_targets"])
+    _write_dataclass_csv(
+        results.retweet_target_profiles, written["retweet_target_profiles"]
+    )
+    _write_dataclass_csv(
+        results.source_client_fingerprints, written["source_client_fingerprints"]
+    )
+    _write_dataclass_csv(
+        results.cascade_tight_windows, written["cascade_tight_windows"]
+    )
     _write_dataclass_csv(results.cohorts, written["cohorts"])
     _write_cohort_members_csv(results.cohorts, written["cohort_members"])
     _write_dataclass_csv(results.cascade_propagation, written["cascade_propagation"])
@@ -109,6 +121,15 @@ def build_summary_payload(results: AnalysisResults) -> dict[str, Any]:
         ],
         "amplified_targets": [
             _dataclass_to_jsonable(item) for item in results.amplified_targets[:25]
+        ],
+        "retweet_target_profiles": [
+            _dataclass_to_jsonable(item) for item in results.retweet_target_profiles[:50]
+        ],
+        "source_client_fingerprints": [
+            _dataclass_to_jsonable(item) for item in results.source_client_fingerprints[:25]
+        ],
+        "cascade_tight_windows": [
+            _dataclass_to_jsonable(item) for item in results.cascade_tight_windows[:25]
         ],
         "cohorts": [_dataclass_to_jsonable(item) for item in results.cohorts[:25]],
         "cascade_propagation": [
@@ -406,6 +427,93 @@ def render_markdown_report(results: AnalysisResults) -> str:
                 f"confidence={role.role_confidence:.2f} "
                 f"signals={', '.join(role.signals[:4]) or '-'}"
             )
+
+    lines.append("")
+    lines.append("## Top retweet targets (inverted view)")
+    lines.append("")
+    lines.append(
+        "Who is being amplified, by how many distinct accounts, and what share of "
+        "those amplifiers are members of the suspected list."
+    )
+    lines.append("")
+    for target in results.retweet_target_profiles[:15]:
+        followers = (
+            f"{target.target_followers_count:,}"
+            if target.target_followers_count is not None
+            else "?"
+        )
+        member_marker = "M" if target.target_is_suspected_member else "-"
+        lines.append(
+            "- "
+            f"`{target.target_handle}` "
+            f"inbound={target.total_inbound_retweets} "
+            f"amps={target.unique_amplifiers} "
+            f"member_amps={target.unique_member_amplifiers} "
+            f"member_share={target.member_amplifier_share:.2f} "
+            f"top1_share={target.top1_share:.2f} "
+            f"hhi={target.amplification_hhi:.4f} "
+            f"followers={followers} "
+            f"is_member={member_marker} "
+            f"tier={target.target_pyramid_position}"
+        )
+
+    lines.append("")
+    lines.append("## Source-client fingerprints (suspicious clients first)")
+    lines.append("")
+    flagged = [
+        item
+        for item in results.source_client_fingerprints
+        if item.is_amplifier_concentrated or item.is_obscure
+    ][:15]
+    if not flagged:
+        lines.append(
+            "- (no obscure or amplifier-concentrated clients flagged in this sample)"
+        )
+    for client in flagged:
+        flags = []
+        if client.is_amplifier_concentrated:
+            flags.append("amplifier_concentrated")
+        if client.is_obscure:
+            flags.append("obscure")
+        lines.append(
+            "- "
+            f"`{client.source_client}` "
+            f"tweets={client.total_tweet_count} "
+            f"accounts={client.unique_account_count} "
+            f"members={client.unique_member_account_count} "
+            f"amplifier_share={client.amplifier_account_share:.2f} "
+            f"top_account={client.top_account_handle or '-'}({client.top_account_share:.2f}) "
+            f"flags={','.join(flags) or '-'}"
+        )
+
+    lines.append("")
+    lines.append("## Tight-window cascades (sub-minute bot-burst candidates)")
+    lines.append("")
+    lines.append(
+        "Cascades sorted by share of retweets occurring within 5 seconds of the "
+        "first retweet. High `burstiness_5s_share` is a stronger coordination "
+        "signal than typical 15m/60m clustering."
+    )
+    lines.append("")
+    bursty = [
+        item for item in results.cascade_tight_windows if item.retweets_within_5s >= 2
+    ][:10]
+    if not bursty:
+        lines.append(
+            "- (no cascades with ≥2 retweets within 5 seconds of the first retweet)"
+        )
+    for window in bursty:
+        lines.append(
+            "- "
+            f"`{window.original_author_handle}` "
+            f"retweets={window.retweet_count} "
+            f"<=5s={window.retweets_within_5s} "
+            f"<=30s={window.retweets_within_30s} "
+            f"<=60s={window.retweets_within_60s} "
+            f"<=5m={window.retweets_within_5m} "
+            f"<=15m={window.retweets_within_15m} "
+            f"burst_5s_share={window.burstiness_5s_share:.2f}"
+        )
 
     lines.append("")
     lines.append("## Limits")

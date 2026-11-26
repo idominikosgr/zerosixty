@@ -21,26 +21,33 @@ from zerosixty.crews import (
 )
 from zerosixty.discovery import discover_dataset
 from zerosixty.loaders import (
+    load_clean_account_records,
     load_clean_member_records,
     load_clean_tweet_records,
     load_export_rows,
+    load_export_users,
     load_extra_member_handles,
     load_member_records,
 )
 from zerosixty.ml import run_ml_pipeline
 from zerosixty.models import AnalysisResults, DatasetPaths, MLRunSummary
-from zerosixty.normalize import build_tweet_records
+from zerosixty.normalize import build_account_profiles, build_tweet_records
 from zerosixty.propagation import (
     build_cascade_propagation,
     build_first_retweeter_profiles,
 )
 from zerosixty.reporting import write_outputs
+from zerosixty.targets import (
+    build_cascade_tight_windows,
+    build_retweet_target_profiles,
+    build_source_client_fingerprints,
+)
 from zerosixty.typology import build_account_roles
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from zerosixty.models import MemberRecord, TweetRecord
+    from zerosixty.models import AccountProfile, MemberRecord, TweetRecord
 
 
 def run_pipeline(
@@ -73,12 +80,20 @@ def run_pipeline(
         extra_handles=extra_handles,
     )
     raw_rows = load_export_rows(dataset_paths.exporter_json)
+    raw_users = load_export_users(dataset_paths.exporter_json)
     tweets = build_tweet_records(raw_rows)
+    member_handle_set = {member.screen_name for member in members if member.screen_name}
+    account_profiles = build_account_profiles(
+        raw_rows=raw_rows,
+        users_table_rows=raw_users,
+        member_handles=member_handle_set,
+    )
 
     return _run_analysis(
         dataset_paths=dataset_paths,
         members=members,
         tweets=tweets,
+        account_profiles=account_profiles,
         output_dir=output_dir,
         min_shared_overlap=min_shared_overlap,
         enable_ml=enable_ml,
@@ -95,15 +110,23 @@ def run_pipeline_clean(
     source_members_file: Path | None = None,
     source_exporter_file: Path | None = None,
     source_extra_members_file: Path | None = None,
+    accounts_csv: Path | None = None,
     min_shared_overlap: int = 2,
     enable_ml: bool = True,
     ml_clusters: int | None = None,
     ml_random_state: int = 42,
 ) -> tuple[AnalysisResults, dict[str, Path]]:
-    """Run analysis from normalized clean-batch CSV files."""
+    """Run analysis from normalized clean-batch CSV files.
+
+    Loads `accounts.csv` from the same batch directory when present (sibling of
+    tweets.csv); falls back to an empty registry for older batches.
+    """
 
     members = load_clean_member_records(members_csv)
     tweets = load_clean_tweet_records(tweets_csv)
+    if accounts_csv is None:
+        accounts_csv = tweets_csv.parent / "accounts.csv"
+    account_profiles = load_clean_account_records(accounts_csv)
     dataset_paths = DatasetPaths(
         members_file=(source_members_file or members_csv).resolve(),
         exporter_json=(source_exporter_file or tweets_csv).resolve(),
@@ -118,6 +141,7 @@ def run_pipeline_clean(
         dataset_paths=dataset_paths,
         members=members,
         tweets=tweets,
+        account_profiles=account_profiles,
         output_dir=output_dir,
         min_shared_overlap=min_shared_overlap,
         enable_ml=enable_ml,
@@ -131,6 +155,7 @@ def _run_analysis(
     dataset_paths: DatasetPaths,
     members: list[MemberRecord],
     tweets: list[TweetRecord],
+    account_profiles: list[AccountProfile],
     output_dir: Path,
     min_shared_overlap: int,
     enable_ml: bool,
@@ -222,6 +247,19 @@ def _run_analysis(
         ml_account_summaries = []
         ml_cluster_summaries = []
 
+    retweet_target_profiles = build_retweet_target_profiles(
+        tweets,
+        member_handles=member_handle_set,
+        account_profiles=account_profiles,
+        reference_time=dataset_stats.date_end,
+    )
+    source_client_fingerprints = build_source_client_fingerprints(
+        tweets,
+        member_handles=member_handle_set,
+        account_roles=account_roles,
+    )
+    cascade_tight_windows = build_cascade_tight_windows(tweets, cascades)
+
     results = AnalysisResults(
         dataset_paths=dataset_paths,
         dataset_stats=dataset_stats,
@@ -245,6 +283,9 @@ def _run_analysis(
         ml_run_summary=ml_run_summary,
         ml_account_summaries=ml_account_summaries,
         ml_cluster_summaries=ml_cluster_summaries,
+        retweet_target_profiles=retweet_target_profiles,
+        source_client_fingerprints=source_client_fingerprints,
+        cascade_tight_windows=cascade_tight_windows,
     )
     written = write_outputs(results, output_dir)
     return results, written

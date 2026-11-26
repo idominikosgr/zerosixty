@@ -52,6 +52,7 @@ class TweetRecord:
     canonical_text: str
     is_retweet: bool
     is_quote: bool
+    is_reply: bool
     content_tweet_id: str
     content_author_handle: str
     content_author_name: str | None
@@ -62,6 +63,19 @@ class TweetRecord:
     hashtags: tuple[str, ...]
     mentions_raw: tuple[str, ...]
     mentions: tuple[str, ...]
+    urls: tuple[str, ...]
+    url_domains: tuple[str, ...]
+    lang: str | None
+    favorite_count: int
+    retweet_count_at_capture: int
+    quote_count: int
+    reply_count: int
+    view_count: int | None
+    conversation_id: str | None
+    in_reply_to_tweet_id: str | None
+    in_reply_to_user_handle: str | None
+    quoted_tweet_id: str | None
+    quoted_author_handle: str | None
 
 
 @dataclass(slots=True)
@@ -419,6 +433,103 @@ class MLClusterSummary:
 
 
 @dataclass(slots=True)
+class AccountProfile:
+    """Profile data for any observed account, member or not.
+
+    Sourced from (in priority order): the raw `users` table (richest), tweet author
+    payloads, retweet content-author payloads, and quoted-tweet author payloads.
+    """
+
+    screen_name: str
+    user_id: str
+    display_name: str | None
+    description: str | None
+    location: str | None
+    url: str | None
+    followers_count: int | None
+    friends_count: int | None
+    statuses_count: int | None
+    favourites_count: int | None
+    listed_count: int | None
+    is_blue_verified: bool | None
+    default_profile: bool | None
+    default_profile_image: bool | None
+    profile_description_language: str | None
+    created_at: datetime | None
+    is_suspected_member: bool
+    has_richest_profile: bool
+    sources: tuple[str, ...]
+
+
+@dataclass(slots=True)
+class RetweetTargetProfile:
+    """Inverted (target-first) view: who is being amplified and by whom.
+
+    Pairs every retweet target with its profile (when known) and aggregate
+    amplifier metrics, including the member/non-member amplifier split.
+    """
+
+    target_handle: str
+    target_is_suspected_member: bool
+    target_has_rich_profile: bool
+    target_followers_count: int | None
+    target_friends_count: int | None
+    target_listed_count: int | None
+    target_statuses_count: int | None
+    target_is_blue_verified: bool | None
+    target_default_profile: bool | None
+    target_account_age_days: int | None
+    target_description: str | None
+    total_inbound_retweets: int
+    unique_amplifiers: int
+    unique_member_amplifiers: int
+    unique_amplified_posts: int
+    member_amplifier_share: float
+    top_amplifier_handle: str | None
+    top_amplifier_count: int
+    top1_share: float
+    amplification_hhi: float
+    top10_amplifiers: str
+    target_pyramid_position: str
+
+
+@dataclass(slots=True)
+class SourceClientFingerprint:
+    """Per source-client usage profile, flagged when concentrated on amplifiers."""
+
+    source_client: str
+    total_tweet_count: int
+    unique_account_count: int
+    unique_member_account_count: int
+    member_account_share: float
+    top_account_handle: str | None
+    top_account_count: int
+    top_account_share: float
+    amplifier_account_count: int
+    amplifier_account_share: float
+    is_obscure: bool
+    is_amplifier_concentrated: bool
+
+
+@dataclass(slots=True)
+class CascadeTightWindowSummary:
+    """Sub-minute timing buckets for one cascade — bot-burst detector input."""
+
+    original_tweet_id: str
+    original_author_handle: str
+    retweet_count: int
+    first_retweet_at: datetime | None
+    retweets_within_5s: int
+    retweets_within_30s: int
+    retweets_within_60s: int
+    retweets_within_5m: int
+    retweets_within_15m: int
+    retweets_within_60m: int
+    burstiness_5s_share: float
+    burstiness_60s_share: float
+
+
+@dataclass(slots=True)
 class AnalysisResults:
     """Container for one completed analysis run."""
 
@@ -444,3 +555,6 @@ class AnalysisResults:
     ml_run_summary: MLRunSummary
     ml_account_summaries: list[MLAccountSummary]
     ml_cluster_summaries: list[MLClusterSummary]
+    retweet_target_profiles: list[RetweetTargetProfile]
+    source_client_fingerprints: list[SourceClientFingerprint]
+    cascade_tight_windows: list[CascadeTightWindowSummary]

@@ -319,14 +319,7 @@ def _is_media_business(
         return True
     if listed is not None and listed >= 50:
         return True
-    if (
-        followers is not None
-        and followers >= 10_000
-        and followers_friends_ratio is not None
-        and followers_friends_ratio >= 25.0
-    ):
-        return True
-    return False
+    return bool(followers is not None and followers >= 10000 and followers_friends_ratio is not None and followers_friends_ratio >= 25.0)
 
 
 def _is_journalist_public_figure(
@@ -343,9 +336,7 @@ def _is_journalist_public_figure(
         return True
     if followers is not None and followers >= 5_000:
         return True
-    if followers_friends_ratio is not None and followers_friends_ratio >= 3.0:
-        return True
-    return False
+    return bool(followers_friends_ratio is not None and followers_friends_ratio >= 3.0)
 
 
 def _is_amplifier_suspect(
@@ -363,9 +354,7 @@ def _is_amplifier_suspect(
         return True
     if summary.top_amplified_share >= 0.5:
         return True
-    if summary.first_retweeter_count >= 3:
-        return True
-    return False
+    return summary.first_retweeter_count >= 3
 
 
 def _is_retail_user(
@@ -381,9 +370,7 @@ def _is_retail_user(
         return False
     if listed is not None and listed >= 10:
         return False
-    if summary.retweet_ratio >= 0.9 and summary.original_count == 0:
-        return False
-    return True
+    return not (summary.retweet_ratio >= 0.9 and summary.original_count == 0)
 
 
 def _text_matches(text: str, patterns: tuple[re.Pattern[str], ...]) -> bool:
