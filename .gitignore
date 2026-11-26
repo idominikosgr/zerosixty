@@ -215,3 +215,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 infographic_plan.md
+# Scraped raw dumps, generated clean batches and analysis outputs
+datasets-raw/
+datasets-clean/
+outputs/
